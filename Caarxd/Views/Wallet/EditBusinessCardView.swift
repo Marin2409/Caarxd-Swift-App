@@ -1,5 +1,5 @@
 //
-//  CreateBusinessCardView.swift
+//  EditBusinessCardView.swift
 //  Caarxd
 //
 //  Created by Jose Marin on 11/28/25.
@@ -9,9 +9,11 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 
-struct CreateBusinessCardView: View {
+struct EditBusinessCardView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+
+    let card: BusinessCard
 
     @State private var firstName = ""
     @State private var lastName = ""
@@ -73,7 +75,7 @@ struct CreateBusinessCardView: View {
                     }
                 }
             }
-            .navigationTitle("New Business Card")
+            .navigationTitle("Edit Business Card")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -95,33 +97,49 @@ struct CreateBusinessCardView: View {
                     }
                 }
             }
+            .onAppear {
+                loadCardData()
+            }
+        }
+    }
+
+    private func loadCardData() {
+        firstName = card.firstName
+        lastName = card.lastName
+        title = card.title
+        company = card.company
+        email = card.email
+        phone = card.phone
+        website = card.website
+        linkedInURL = card.linkedInURL
+        logoData = card.logoData
+
+        if let hexColor = Color(hex: card.primaryColor) {
+            primaryColor = hexColor
         }
     }
 
     private func saveCard() {
-        let card = BusinessCard(
-            firstName: firstName,
-            lastName: lastName,
-            title: title,
-            company: company,
-            email: email,
-            phone: phone,
-            website: website,
-            primaryColor: primaryColor.toHex() ?? "#007AFF"
-        )
+        card.firstName = firstName
+        card.lastName = lastName
+        card.title = title
+        card.company = company
+        card.email = email
+        card.phone = phone
+        card.website = website
         card.linkedInURL = linkedInURL
+        card.primaryColor = primaryColor.toHex() ?? "#007AFF"
         card.logoData = logoData
+        card.updatedAt = Date()
 
-        // Generate QR code
+        // Regenerate QR code with updated information
         if let qrData = QRCodeService.shared.generateQRCode(from: card) {
             card.qrCodeData = qrData
         }
 
-        modelContext.insert(card)
-
-        // Track card creation event
+        // Track card edit event
         let event = AnalyticsEvent(
-            eventType: .cardCreated,
+            eventType: .cardEdited,
             businessCardID: card.id,
             metadata: ["cardName": card.fullName]
         )
@@ -131,20 +149,12 @@ struct CreateBusinessCardView: View {
     }
 }
 
-// MARK: - Color to Hex Extension
-extension Color {
-    func toHex() -> String? {
-        guard let components = UIColor(self).cgColor.components else { return nil }
-        let r = Float(components[0])
-        let g = Float(components[1])
-        let b = Float(components[2])
-        return String(format: "#%02lX%02lX%02lX",
-                     lroundf(r * 255),
-                     lroundf(g * 255),
-                     lroundf(b * 255))
-    }
-}
-
 #Preview {
-    CreateBusinessCardView()
+    EditBusinessCardView(card: BusinessCard(
+        firstName: "John",
+        lastName: "Doe",
+        title: "iOS Developer",
+        company: "Tech Corp",
+        email: "john@techcorp.com"
+    ))
 }

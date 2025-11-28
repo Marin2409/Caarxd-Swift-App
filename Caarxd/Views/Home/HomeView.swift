@@ -9,13 +9,6 @@ import SwiftUI
 import SwiftData
 import Charts
 
-enum TimePeriod: String, CaseIterable {
-    case day = "24h"
-    case week = "7d"
-    case month = "30d"
-    case all = "All"
-}
-
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var businessCards: [BusinessCard]
@@ -24,27 +17,51 @@ struct HomeView: View {
     @State private var selectedCard: BusinessCard?
     @State private var selectedPeriod: TimePeriod = .week
     @State private var showingCardSelector = false
+    @State private var showingShareSheet = false
+    @State private var showingEditCard = false
+    @State private var showingNoCardsAlert = false
+    @State private var showingSettings = false
+    @State private var showingThemes = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(spacing: DesignSystem.Spacing.xxxl) {
+                    // Header Section
+                    headerSection
+
                     // Card Selector
                     cardSelectorSection
 
                     // Quick Actions
                     quickActionsSection
 
-                    // Metrics Grid
-                    metricsGridSection
+                    // Metrics
+                    metricsSection
 
-                    // Analytics Charts
-                    analyticsChartsSection
+                    // Analytics Chart
+                    analyticsSection
                 }
-                .padding()
+                .padding(DesignSystem.Spacing.lg)
             }
-            .navigationTitle("Dashboard")
+            .background(DesignSystem.Colors.background)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Menu {
+                        Button(action: { showingSettings = true }) {
+                            Label("Settings", systemImage: "gear")
+                        }
+                        Button(action: { showingThemes = true }) {
+                            Label("Themes", systemImage: "circle.lefthalf.filled")
+                        }
+                    } label: {
+                        Image(systemName: "person.circle")
+                            .font(.title3)
+                            .foregroundColor(DesignSystem.Colors.primary)
+                    }
+                }
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
                         Picker("Time Period", selection: $selectedPeriod) {
@@ -54,6 +71,8 @@ struct HomeView: View {
                         }
                     } label: {
                         Image(systemName: "calendar")
+                            .font(.title3)
+                            .foregroundColor(DesignSystem.Colors.primary)
                     }
                 }
             }
@@ -63,35 +82,88 @@ struct HomeView: View {
                 selectedCard = firstCard
             }
         }
+        .onChange(of: businessCards) { oldCards, newCards in
+            if let selected = selectedCard, !newCards.contains(where: { $0.id == selected.id }) {
+                selectedCard = newCards.first
+            }
+        }
+        .sheet(isPresented: $showingShareSheet) {
+            if let card = selectedCard {
+                ShareSheet(card: card)
+            }
+        }
+        .sheet(isPresented: $showingEditCard) {
+            if let card = selectedCard {
+                EditBusinessCardView(card: card)
+            }
+        }
+        .sheet(isPresented: $showingSettings) {
+            UserProfileView()
+        }
+        .sheet(isPresented: $showingThemes) {
+            ThemeSettingsView()
+        }
+        .alert("No Cards Added", isPresented: $showingNoCardsAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Add Card") {
+                NotificationCenter.default.post(name: NSNotification.Name("NavigateToWalletAndCreate"), object: nil)
+            }
+        } message: {
+            Text("You haven't created any business cards yet. Would you like to create one now?")
+        }
     }
 
-    // MARK: - Card Selector Section
+    // MARK: - Header Section
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            Text("Dashboard")
+                .font(DesignSystem.Typography.displaySmall)
+                .foregroundColor(DesignSystem.Colors.text)
+
+            Text("Track your card performance")
+                .font(DesignSystem.Typography.body)
+                .foregroundColor(DesignSystem.Colors.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Card Selector
     private var cardSelectorSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Selected Card")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            Text("Active Card")
+                .font(DesignSystem.Typography.caption)
+                .foregroundColor(DesignSystem.Colors.textTertiary)
+                .textCase(.uppercase)
+                .tracking(1)
 
             Button(action: { showingCardSelector.toggle() }) {
-                HStack {
-                    VStack(alignment: .leading) {
+                HStack(spacing: DesignSystem.Spacing.md) {
+                    VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                         Text(selectedCard?.fullName ?? "No Card Selected")
-                            .font(.headline)
+                            .font(DesignSystem.Typography.headline)
+                            .foregroundColor(DesignSystem.Colors.text)
+
                         if let card = selectedCard {
                             Text(card.title)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundColor(DesignSystem.Colors.textSecondary)
                         }
                     }
+
                     Spacer()
+
                     Image(systemName: "chevron.down")
+                        .font(.caption)
+                        .foregroundColor(DesignSystem.Colors.textTertiary)
                 }
-                .padding()
-                .background(Color(.systemBackground))
-                .cornerRadius(12)
-                .shadow(color: .black.opacity(0.05), radius: 5)
+                .padding(DesignSystem.Spacing.lg)
+                .background(DesignSystem.Colors.surface)
+                .cornerRadius(DesignSystem.CornerRadius.md)
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
+                        .stroke(DesignSystem.Colors.border, lineWidth: 1)
+                )
             }
-            .foregroundColor(.primary)
             .confirmationDialog("Select Card", isPresented: $showingCardSelector) {
                 ForEach(businessCards) { card in
                     Button(card.fullName) {
@@ -102,67 +174,100 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Quick Actions Section
+    // MARK: - Quick Actions
     private var quickActionsSection: some View {
-        HStack(spacing: 12) {
-            Button(action: {}) {
-                Label("Share", systemImage: "square.and.arrow.up")
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
+        HStack(spacing: DesignSystem.Spacing.md) {
+            Button(action: {
+                if selectedCard != nil {
+                    showingShareSheet = true
+                } else {
+                    showingNoCardsAlert = true
+                }
+            }) {
+                VStack(spacing: DesignSystem.Spacing.sm) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.title2)
+                    Text("Share")
+                        .font(DesignSystem.Typography.caption)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(DesignSystem.Spacing.lg)
+                .foregroundColor(DesignSystem.Colors.accent)
+                .background(DesignSystem.Colors.accentSubtle)
+                .cornerRadius(DesignSystem.CornerRadius.md)
             }
 
-            Button(action: {}) {
-                Label("Edit", systemImage: "pencil")
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
+            Button(action: {
+                if selectedCard != nil {
+                    showingEditCard = true
+                } else {
+                    showingNoCardsAlert = true
+                }
+            }) {
+                VStack(spacing: DesignSystem.Spacing.sm) {
+                    Image(systemName: "pencil")
+                        .font(.title2)
+                    Text("Edit")
+                        .font(DesignSystem.Typography.caption)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(DesignSystem.Spacing.lg)
+                .foregroundColor(DesignSystem.Colors.text)
+                .background(DesignSystem.Colors.surface)
+                .cornerRadius(DesignSystem.CornerRadius.md)
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
+                        .stroke(DesignSystem.Colors.border, lineWidth: 1)
+                )
             }
         }
     }
 
-    // MARK: - Metrics Grid Section
-    private var metricsGridSection: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-            MetricCard(
-                title: "Views",
-                value: "\(filteredAnalytics(.view).count)",
-                icon: "eye.fill",
-                color: .blue
-            )
+    // MARK: - Metrics Section
+    private var metricsSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            Text("Overview")
+                .font(DesignSystem.Typography.caption)
+                .foregroundColor(DesignSystem.Colors.textTertiary)
+                .textCase(.uppercase)
+                .tracking(1)
 
-            MetricCard(
-                title: "Shares",
-                value: "\(filteredAnalytics(.share).count)",
-                icon: "square.and.arrow.up.fill",
-                color: .green
-            )
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DesignSystem.Spacing.md) {
+                MetricCardRedesigned(
+                    value: "\(filteredAnalytics(.view).count)",
+                    label: "Views",
+                    icon: "eye"
+                )
 
-            MetricCard(
-                title: "Contacts",
-                value: "\(filteredAnalytics(.contactSave).count)",
-                icon: "person.fill.badge.plus",
-                color: .orange
-            )
+                MetricCardRedesigned(
+                    value: "\(filteredAnalytics(.share).count)",
+                    label: "Shares",
+                    icon: "square.and.arrow.up"
+                )
 
-            MetricCard(
-                title: "Link Clicks",
-                value: "\(filteredAnalytics(.linkClick).count)",
-                icon: "link",
-                color: .purple
-            )
+                MetricCardRedesigned(
+                    value: "\(filteredAnalytics(.contactSave).count)",
+                    label: "Saves",
+                    icon: "person.badge.plus"
+                )
+
+                MetricCardRedesigned(
+                    value: "\(filteredAnalytics(.linkClick).count)",
+                    label: "Clicks",
+                    icon: "link"
+                )
+            }
         }
     }
 
-    // MARK: - Analytics Charts Section
-    private var analyticsChartsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Activity Trend")
-                .font(.headline)
+    // MARK: - Analytics Section
+    private var analyticsSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            Text("Activity")
+                .font(DesignSystem.Typography.caption)
+                .foregroundColor(DesignSystem.Colors.textTertiary)
+                .textCase(.uppercase)
+                .tracking(1)
 
             Chart {
                 ForEach(getChartData(), id: \.date) { dataPoint in
@@ -170,14 +275,39 @@ struct HomeView: View {
                         x: .value("Date", dataPoint.date),
                         y: .value("Count", dataPoint.count)
                     )
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(DesignSystem.Colors.accent)
+                    .lineStyle(StrokeStyle(lineWidth: 2))
+
+                    AreaMark(
+                        x: .value("Date", dataPoint.date),
+                        y: .value("Count", dataPoint.count)
+                    )
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [DesignSystem.Colors.accent.opacity(0.2), DesignSystem.Colors.accent.opacity(0)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
                 }
             }
             .frame(height: 200)
-            .padding()
-            .background(Color(.systemBackground))
-            .cornerRadius(12)
-            .shadow(color: .black.opacity(0.05), radius: 5)
+            .chartXAxis {
+                AxisMarks(position: .bottom) { _ in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0))
+                    AxisTick(stroke: StrokeStyle(lineWidth: 0))
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading) { _ in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 1, dash: [2, 4]))
+                        .foregroundStyle(DesignSystem.Colors.border)
+                    AxisTick(stroke: StrokeStyle(lineWidth: 0))
+                }
+            }
+            .padding(DesignSystem.Spacing.lg)
+            .background(DesignSystem.Colors.surface)
+            .cornerRadius(DesignSystem.CornerRadius.md)
         }
     }
 
@@ -230,38 +360,47 @@ struct HomeView: View {
     }
 }
 
-// MARK: - Supporting Views
-struct MetricCard: View {
-    let title: String
-    let value: String
-    let icon: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: icon)
-                    .foregroundColor(color)
-                Spacer()
-            }
-            Text(value)
-                .font(.title2)
-                .fontWeight(.bold)
-            Text(title)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.05), radius: 5)
-    }
+// MARK: - Supporting Types
+enum TimePeriod: String, CaseIterable {
+    case day = "Today"
+    case week = "This Week"
+    case month = "This Month"
+    case all = "All Time"
 }
 
 struct ChartDataPoint {
     let date: Date
     let count: Int
+}
+
+// MARK: - Metric Card Redesigned
+struct MetricCardRedesigned: View {
+    let value: String
+    let label: String
+    let icon: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(DesignSystem.Colors.textSecondary)
+
+            Spacer()
+
+            Text(value)
+                .font(DesignSystem.Typography.title1)
+                .foregroundColor(DesignSystem.Colors.text)
+
+            Text(label)
+                .font(DesignSystem.Typography.caption)
+                .foregroundColor(DesignSystem.Colors.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: 120)
+        .padding(DesignSystem.Spacing.lg)
+        .background(DesignSystem.Colors.surface)
+        .cornerRadius(DesignSystem.CornerRadius.md)
+    }
 }
 
 #Preview {

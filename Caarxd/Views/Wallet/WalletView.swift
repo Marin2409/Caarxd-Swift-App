@@ -1,5 +1,5 @@
 //
-//  WalletView.swift
+//  WalletViewRedesigned.swift
 //  Caarxd
 //
 //  Created by Jose Marin on 11/28/25.
@@ -11,76 +11,85 @@ import SwiftData
 struct WalletView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var businessCards: [BusinessCard]
-    @Query private var workCards: [WorkCard]
+    @Query(sort: \AnalyticsEvent.timestamp, order: .reverse) private var analytics: [AnalyticsEvent]
 
+    @Binding var shouldShowCreateCard: Bool
     @State private var showingCreateCard = false
-    @State private var showingAddWorkCard = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 24) {
-                    // Personal Business Cards Section
-                    personalCardsSection
+                VStack(spacing: DesignSystem.Spacing.xxxl) {
+                    // Header
+                    headerSection
 
-                    Divider()
-                        .padding(.vertical)
+                    // Cards Grid
+                    cardsGridSection
 
-                    // Work Cards Section
-                    workCardsSection
+                    // Recent Activity
+                    recentActivitySection
                 }
-                .padding()
+                .padding(DesignSystem.Spacing.lg)
             }
-            .navigationTitle("Wallet")
+            .background(DesignSystem.Colors.background)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button(action: { showingCreateCard = true }) {
-                            Label("New Business Card", systemImage: "person.crop.rectangle")
-                        }
-                        Button(action: { showingAddWorkCard = true }) {
-                            Label("Add Work Card", systemImage: "briefcase")
-                        }
-                    } label: {
+                    Button(action: { showingCreateCard = true }) {
                         Image(systemName: "plus")
+                            .font(.title3)
+                            .foregroundColor(DesignSystem.Colors.accent)
                     }
                 }
             }
             .sheet(isPresented: $showingCreateCard) {
                 CreateBusinessCardView()
             }
-            .sheet(isPresented: $showingAddWorkCard) {
-                CreateWorkCardView()
+            .onChange(of: shouldShowCreateCard) { _, newValue in
+                if newValue {
+                    showingCreateCard = true
+                    shouldShowCreateCard = false
+                }
             }
         }
     }
 
-    // MARK: - Personal Cards Section
-    private var personalCardsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Personal Cards")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                Spacer()
-                Text("\(businessCards.count)")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-            }
+    // MARK: - Header
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            Text("Wallet")
+                .font(DesignSystem.Typography.displaySmall)
+                .foregroundColor(DesignSystem.Colors.text)
+
+            Text("\(businessCards.count) card\(businessCards.count == 1 ? "" : "s")")
+                .font(DesignSystem.Typography.body)
+                .foregroundColor(DesignSystem.Colors.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Cards Grid
+    private var cardsGridSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            Text("Your Cards")
+                .font(DesignSystem.Typography.caption)
+                .foregroundColor(DesignSystem.Colors.textTertiary)
+                .textCase(.uppercase)
+                .tracking(1)
 
             if businessCards.isEmpty {
-                emptyStateView(
-                    icon: "person.crop.rectangle",
-                    title: "No Business Cards",
-                    message: "Create your first digital business card",
-                    action: { showingCreateCard = true }
-                )
+                emptyStateView
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 16) {
-                        ForEach(businessCards) { card in
-                            NavigationLink(destination: BusinessCardDetailView(card: card)) {
-                                BusinessCardPreview(card: card)
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DesignSystem.Spacing.md) {
+                    ForEach(businessCards) { card in
+                        NavigationLink(destination: BusinessCardDetailView(card: card)) {
+                            MinimalCardPreview(card: card)
+                        }
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                deleteBusinessCard(card)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
                             }
                         }
                     }
@@ -89,73 +98,91 @@ struct WalletView: View {
         }
     }
 
-    // MARK: - Work Cards Section
-    private var workCardsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Work Cards")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                Spacer()
-                Text("\(workCards.count)")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-            }
+    // MARK: - Recent Activity
+    private var recentActivitySection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            Text("Recent Activity")
+                .font(DesignSystem.Typography.caption)
+                .foregroundColor(DesignSystem.Colors.textTertiary)
+                .textCase(.uppercase)
+                .tracking(1)
 
-            if workCards.isEmpty {
-                emptyStateView(
-                    icon: "briefcase",
-                    title: "No Work Cards",
-                    message: "Add your employee ID or access cards",
-                    action: { showingAddWorkCard = true }
-                )
+            if analytics.isEmpty {
+                emptyActivityView
             } else {
-                VStack(spacing: 12) {
-                    ForEach(workCards) { card in
-                        NavigationLink(destination: WorkCardDetailView(card: card)) {
-                            WorkCardRow(card: card)
-                        }
+                VStack(spacing: DesignSystem.Spacing.sm) {
+                    ForEach(analytics.prefix(5)) { event in
+                        MinimalActivityRow(event: event, businessCards: businessCards)
                     }
                 }
             }
         }
     }
 
-    // MARK: - Empty State View
-    private func emptyStateView(icon: String, title: String, message: String, action: @escaping () -> Void) -> some View {
-        VStack(spacing: 16) {
-            Image(systemName: icon)
-                .font(.system(size: 60))
-                .foregroundStyle(.secondary)
-            Text(title)
-                .font(.headline)
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Button(action: action) {
-                Text("Get Started")
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
+    // MARK: - Empty States
+    private var emptyStateView: some View {
+        VStack(spacing: DesignSystem.Spacing.lg) {
+            Image(systemName: "rectangle.stack")
+                .font(.system(size: 48))
+                .foregroundColor(DesignSystem.Colors.textTertiary)
+
+            VStack(spacing: DesignSystem.Spacing.xs) {
+                Text("No Cards Yet")
+                    .font(DesignSystem.Typography.headline)
+                    .foregroundColor(DesignSystem.Colors.text)
+
+                Text("Create your first digital card")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundColor(DesignSystem.Colors.textSecondary)
             }
-            .padding(.horizontal, 40)
+
+            Button(action: { showingCreateCard = true }) {
+                Text("Create Card")
+                    .primaryButton()
+            }
+            .padding(.horizontal, DesignSystem.Spacing.xl)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
+        .padding(.vertical, DesignSystem.Spacing.xxxl)
+    }
+
+    private var emptyActivityView: some View {
+        VStack(spacing: DesignSystem.Spacing.md) {
+            Image(systemName: "chart.line.flattrend.xyaxis")
+                .font(.system(size: 32))
+                .foregroundColor(DesignSystem.Colors.textTertiary)
+
+            Text("No activity yet")
+                .font(DesignSystem.Typography.caption)
+                .foregroundColor(DesignSystem.Colors.textSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, DesignSystem.Spacing.xl)
+    }
+
+    // MARK: - Helper
+    private func deleteBusinessCard(_ card: BusinessCard) {
+        let event = AnalyticsEvent(
+            eventType: .cardDeleted,
+            businessCardID: card.id,
+            metadata: ["cardName": card.fullName]
+        )
+        modelContext.insert(event)
+
+        withAnimation {
+            modelContext.delete(card)
+        }
     }
 }
 
-// MARK: - Business Card Preview
-struct BusinessCardPreview: View {
+// MARK: - Minimal Card Preview
+struct MinimalCardPreview: View {
     let card: BusinessCard
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Card Header
-            HStack {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            // Header with Logo
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.xs) {
                 if let logoData = card.logoData, let uiImage = UIImage(data: logoData) {
                     Image(uiImage: uiImage)
                         .resizable()
@@ -164,127 +191,140 @@ struct BusinessCardPreview: View {
                         .clipShape(Circle())
                 } else {
                     Circle()
-                        .fill(Color(hex: card.primaryColor) ?? .blue)
+                        .fill(Color.white.opacity(0.25))
                         .frame(width: 40, height: 40)
                         .overlay(
                             Text(card.firstName.prefix(1))
+                                .font(DesignSystem.Typography.headline)
                                 .foregroundColor(.white)
-                                .fontWeight(.bold)
+                                .fontWeight(.semibold)
                         )
                 }
+
                 Spacer()
+
                 if card.isInWallet {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
+                        .font(.caption)
+                        .foregroundColor(.white)
                 }
             }
 
             Spacer()
 
-            // Card Content
-            VStack(alignment: .leading, spacing: 4) {
+            // Name and Title
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                 Text(card.fullName)
-                    .font(.headline)
+                    .font(DesignSystem.Typography.headline)
+                    .fontWeight(.semibold)
                     .foregroundColor(.white)
+                    .lineLimit(1)
+
                 Text(card.title)
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.9))
-                Text(card.company)
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.8))
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+
+                if !card.company.isEmpty {
+                    Text(card.company)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                }
             }
         }
-        .padding()
-        .frame(width: 280, height: 180)
+        .frame(height: 180)
+        .padding(DesignSystem.Spacing.md)
         .background(
-            LinearGradient(
-                colors: [
-                    Color(hex: card.primaryColor) ?? .blue,
-                    Color(hex: card.secondaryColor) ?? .purple
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            Color(hex: card.primaryColor) ?? DesignSystem.Colors.accent
         )
-        .cornerRadius(16)
-        .shadow(radius: 5)
+        .cornerRadius(DesignSystem.CornerRadius.lg)
+        .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
     }
 }
 
-// MARK: - Work Card Row
-struct WorkCardRow: View {
-    let card: WorkCard
+// MARK: - Minimal Activity Row
+struct MinimalActivityRow: View {
+    let event: AnalyticsEvent
+    let businessCards: [BusinessCard]
 
     var body: some View {
-        HStack(spacing: 16) {
-            if let imageData = card.cardImageData, let uiImage = UIImage(data: imageData) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 60, height: 60)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-            } else {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.blue.opacity(0.2))
-                    .frame(width: 60, height: 60)
-                    .overlay(
-                        Image(systemName: "briefcase")
-                            .foregroundColor(.blue)
-                    )
-            }
+        HStack(spacing: DesignSystem.Spacing.md) {
+            // Icon
+            Image(systemName: eventIcon)
+                .font(.body)
+                .foregroundColor(eventColor)
+                .frame(width: 24)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(card.cardName)
-                    .font(.headline)
-                Text(card.company)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            // Info
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                Text(eventTitle)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundColor(DesignSystem.Colors.text)
+
+                if let card = businessCards.first(where: { $0.id == event.businessCardID }) {
+                    Text(card.fullName)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundColor(DesignSystem.Colors.textTertiary)
+                }
             }
 
             Spacer()
 
-            if card.isInWallet {
-                Image(systemName: "wallet.pass.fill")
-                    .foregroundColor(.green)
-            }
-
-            Image(systemName: "chevron.right")
-                .foregroundStyle(.secondary)
+            // Time
+            Text(timeAgo)
+                .font(DesignSystem.Typography.caption)
+                .foregroundColor(DesignSystem.Colors.textTertiary)
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.05), radius: 5)
+        .padding(DesignSystem.Spacing.md)
+        .background(DesignSystem.Colors.surface)
+        .cornerRadius(DesignSystem.CornerRadius.sm)
     }
-}
 
-// MARK: - Color Extension
-extension Color {
-    init?(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let a, r, g, b: UInt64
-        switch hex.count {
-        case 3: // RGB (12-bit)
-            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
-        case 6: // RGB (24-bit)
-            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        case 8: // ARGB (32-bit)
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
-        default:
-            return nil
+    private var eventIcon: String {
+        switch event.eventType {
+        case "view": return "eye"
+        case "share": return "square.and.arrow.up"
+        case "contactSave": return "person.badge.plus"
+        case "linkClick": return "link"
+        case "card_created": return "plus.circle"
+        case "card_deleted": return "trash"
+        case "card_edited": return "pencil"
+        default: return "circle"
         }
-        self.init(
-            .sRGB,
-            red: Double(r) / 255,
-            green: Double(g) / 255,
-            blue:  Double(b) / 255,
-            opacity: Double(a) / 255
-        )
+    }
+
+    private var eventColor: Color {
+        switch event.eventType {
+        case "card_created": return DesignSystem.Colors.success
+        case "card_deleted": return DesignSystem.Colors.error
+        case "share": return DesignSystem.Colors.accent
+        default: return DesignSystem.Colors.textSecondary
+        }
+    }
+
+    private var eventTitle: String {
+        switch event.eventType {
+        case "view": return "Viewed"
+        case "share": return "Shared"
+        case "contactSave": return "Contact Saved"
+        case "linkClick": return "Link Clicked"
+        case "card_created": return "Card Created"
+        case "card_deleted": return "Card Deleted"
+        case "card_edited": return "Card Edited"
+        default: return "Activity"
+        }
+    }
+
+    private var timeAgo: String {
+        let seconds = Date().timeIntervalSince(event.timestamp)
+        if seconds < 60 { return "Now" }
+        else if seconds < 3600 { return "\(Int(seconds / 60))m" }
+        else if seconds < 86400 { return "\(Int(seconds / 3600))h" }
+        else { return "\(Int(seconds / 86400))d" }
     }
 }
 
 #Preview {
-    WalletView()
+    WalletView(shouldShowCreateCard: .constant(false))
 }

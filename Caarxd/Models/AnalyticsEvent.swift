@@ -15,6 +15,9 @@ enum EventType: String, Codable {
     case linkClick = "link_click"
     case walletAdd = "wallet_add"
     case qrScan = "qr_scan"
+    case cardCreated = "card_created"
+    case cardDeleted = "card_deleted"
+    case cardEdited = "card_edited"
 }
 
 @Model

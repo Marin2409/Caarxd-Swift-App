@@ -9,6 +9,7 @@ import SwiftUI
 
 struct MainTabView: View {
     @State private var selectedTab = 0
+    @State private var shouldShowCreateCard = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -17,8 +18,15 @@ struct MainTabView: View {
                     Label("Home", systemImage: "chart.bar.fill")
                 }
                 .tag(0)
+                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToWalletAndCreate"))) { _ in
+                    selectedTab = 1
+                    // Delay slightly to ensure tab switch completes first
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        shouldShowCreateCard = true
+                    }
+                }
 
-            WalletView()
+            WalletView(shouldShowCreateCard: $shouldShowCreateCard)
                 .tabItem {
                     Label("Wallet", systemImage: "wallet.pass.fill")
                 }

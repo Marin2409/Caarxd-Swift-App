@@ -6,13 +6,16 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct BusinessCardDetailView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
     let card: BusinessCard
 
     @State private var showingShareSheet = false
     @State private var showingEditView = false
+    @State private var showingDeleteAlert = false
 
     var body: some View {
         ScrollView {
@@ -64,6 +67,12 @@ struct BusinessCardDetailView: View {
                     }
                 }
                 .padding()
+                .sheet(isPresented: $showingShareSheet) {
+                    ShareSheet(card: card)
+                }
+                .sheet(isPresented: $showingEditView) {
+                    EditBusinessCardView(card: card)
+                }
 
                 // Card Details
                 VStack(alignment: .leading, spacing: 16) {
@@ -81,15 +90,47 @@ struct BusinessCardDetailView: View {
                     }
                 }
                 .padding()
+
+                // Delete Button
+                Button(action: { showingDeleteAlert = true }) {
+                    Label("Delete Card", systemImage: "trash")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.red.opacity(0.1))
+                        .foregroundColor(.red)
+                        .cornerRadius(12)
+                }
+                .padding()
             }
         }
         .navigationTitle(card.fullName)
         .navigationBarTitleDisplayMode(.inline)
+        .alert("Delete Card", isPresented: $showingDeleteAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                deleteCard()
+            }
+        } message: {
+            Text("Are you sure you want to delete this card? This action cannot be undone.")
+        }
     }
 
     private func addToWallet() {
         card.isInWallet = true
         card.walletPassID = UUID().uuidString
+    }
+
+    private func deleteCard() {
+        // Track card deletion event before deleting
+        let event = AnalyticsEvent(
+            eventType: .cardDeleted,
+            businessCardID: card.id,
+            metadata: ["cardName": card.fullName]
+        )
+        modelContext.insert(event)
+
+        modelContext.delete(card)
+        dismiss()
     }
 }
 

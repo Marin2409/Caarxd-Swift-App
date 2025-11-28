@@ -26,60 +26,77 @@ enum ScanMode: String, CaseIterable {
 
 struct ScanView: View {
     @State private var scanMode: ScanMode = .qrCode
-    @State private var showingCamera = false
+    @State private var showingCamera = true
     @State private var showingDocumentScanner = false
     @State private var showingScannedResult = false
     @State private var scannedData: String?
+    @State private var showingNFCReader = false
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 32) {
-                // Mode Selector
-                Picker("Scan Mode", selection: $scanMode) {
-                    ForEach(ScanMode.allCases, id: \.self) { mode in
-                        Label(mode.rawValue, systemImage: mode.icon)
-                            .tag(mode)
+            ZStack {
+                // Camera View always showing
+                CameraView(scanMode: scanMode, scannedData: $scannedData, showingScannedResult: $showingScannedResult)
+                    .edgesIgnoringSafeArea(.all)
+
+                // Overlay Controls
+                VStack {
+                    // Top Bar
+                    HStack {
+                        Spacer()
+
+                        // Switch to business card scanner
+                        Button(action: {
+                            showingDocumentScanner = true
+                        }) {
+                            VStack(spacing: 4) {
+                                Image(systemName: "doc.text.viewfinder")
+                                    .font(.system(size: 24))
+                                Text("Card")
+                                    .font(.caption2)
+                            }
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(Color.black.opacity(0.6))
+                            .cornerRadius(12)
+                        }
                     }
+                    .padding()
+
+                    Spacer()
+
+                    // Bottom Info and NFC Button
+                    VStack(spacing: 16) {
+                        Text("Scan QR Code")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                            .background(Color.black.opacity(0.6))
+                            .cornerRadius(20)
+
+                        // NFC Scan Button
+                        Button(action: {
+                            showingNFCReader = true
+                        }) {
+                            HStack {
+                                Image(systemName: "wave.3.right")
+                                    .font(.system(size: 20))
+                                Text("Tap for NFC")
+                                    .font(.headline)
+                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: 200)
+                            .padding()
+                            .background(Color.blue)
+                            .cornerRadius(16)
+                        }
+                    }
+                    .padding(.bottom, 40)
                 }
-                .pickerStyle(.segmented)
-                .padding()
-
-                // Scan Mode Info
-                VStack(spacing: 16) {
-                    Image(systemName: scanMode.icon)
-                        .font(.system(size: 80))
-                        .foregroundStyle(.blue)
-
-                    Text(scanMode.rawValue)
-                        .font(.title2)
-                        .fontWeight(.bold)
-
-                    Text(modeDescription)
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                }
-                .padding()
-
-                // Scan Button
-                Button(action: { startScanning() }) {
-                    Label("Start Scanning", systemImage: "camera.fill")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue)
-                        .cornerRadius(16)
-                }
-                .padding(.horizontal)
-
-                Spacer()
             }
             .navigationTitle("Scan")
-            .sheet(isPresented: $showingCamera) {
-                CameraView(scanMode: scanMode, scannedData: $scannedData, showingScannedResult: $showingScannedResult)
-            }
+            .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showingDocumentScanner) {
                 DocumentScannerView(scannedData: $scannedData, showingScannedResult: $showingScannedResult)
             }
@@ -88,25 +105,11 @@ struct ScanView: View {
                     ScannedResultView(data: data, scanMode: scanMode)
                 }
             }
-        }
-    }
-
-    private var modeDescription: String {
-        switch scanMode {
-        case .qrCode:
-            return "Scan QR codes to instantly connect with others and save their business cards"
-        case .businessCard:
-            return "Capture business cards with your camera and automatically extract contact information"
-        case .barcode:
-            return "Scan barcodes from employee IDs, access cards, and membership cards"
-        }
-    }
-
-    private func startScanning() {
-        if scanMode == .businessCard {
-            showingDocumentScanner = true
-        } else {
-            showingCamera = true
+            .alert("NFC Scanning", isPresented: $showingNFCReader) {
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Hold your iPhone near an NFC-enabled card to scan it. NFC scanning functionality will be implemented in a future update.")
+            }
         }
     }
 }

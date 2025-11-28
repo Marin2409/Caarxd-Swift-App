@@ -11,6 +11,7 @@ import SwiftData
 @main
 struct CaarxdApp: App {
     let modelContainer: ModelContainer
+    @AppStorage("appTheme") private var appTheme: AppTheme = .system
 
     init() {
         do {
@@ -18,7 +19,8 @@ struct CaarxdApp: App {
                 for: BusinessCard.self,
                      Contact.self,
                      AnalyticsEvent.self,
-                     WorkCard.self
+                     WorkCard.self,
+                     User.self
             )
         } catch {
             fatalError("Failed to initialize ModelContainer: \(error)")
@@ -29,6 +31,7 @@ struct CaarxdApp: App {
         WindowGroup {
             ContentView()
                 .modelContainer(modelContainer)
+                .preferredColorScheme(appTheme.colorScheme)
         }
     }
 }

@@ -104,4 +104,11 @@ final class BusinessCard {
     var fullName: String {
         "\(firstName) \(lastName)".trimmingCharacters(in: .whitespaces)
     }
+
+    var shareURL: String {
+        if !deepLinkURL.isEmpty {
+            return deepLinkURL
+        }
+        return "https://caarxd.app/card/\(id.uuidString)"
+    }
 }
