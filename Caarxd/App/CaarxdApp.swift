@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import FirebaseCore
 
 @main
 struct CaarxdApp: App {
@@ -14,6 +15,10 @@ struct CaarxdApp: App {
     @AppStorage("appTheme") private var appTheme: AppTheme = .system
 
     init() {
+        // Initialize Firebase
+        FirebaseConfig.shared.configure()
+
+        // Initialize SwiftData
         do {
             modelContainer = try ModelContainer(
                 for: BusinessCard.self,

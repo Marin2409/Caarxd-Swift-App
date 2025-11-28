@@ -94,12 +94,16 @@ struct LoginView: View {
     private func handleLogin() {
         let authState = AuthState.shared
 
-        if authState.login(email: email, password: password) {
-            authState.markWelcomeSlidesAsSeen()
-            dismiss()
-        } else {
-            errorMessage = "Invalid email or password. Please try again."
-            showingError = true
+        Task {
+            let success = await authState.login(email: email, password: password)
+
+            if success {
+                authState.markWelcomeSlidesAsSeen()
+                dismiss()
+            } else {
+                errorMessage = authState.errorMessage ?? "Invalid email or password. Please try again."
+                showingError = true
+            }
         }
     }
 }

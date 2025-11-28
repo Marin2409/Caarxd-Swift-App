@@ -151,21 +151,31 @@ struct SignUpView: View {
     private func handleSignUp() {
         let authState = AuthState.shared
 
-        if authState.signUp(email: email, password: password, firstName: firstName, lastName: lastName, phone: phone) {
-            // Create User profile in SwiftData
-            let user = User(
+        Task {
+            let success = await authState.signUp(
+                email: email,
+                password: password,
                 firstName: firstName,
                 lastName: lastName,
-                email: email,
                 phone: phone
             )
-            modelContext.insert(user)
 
-            authState.markWelcomeSlidesAsSeen()
-            dismiss()
-        } else {
-            errorMessage = "An account with this email already exists."
-            showingError = true
+            if success {
+                // Create User profile in SwiftData (for local caching)
+                let user = User(
+                    firstName: firstName,
+                    lastName: lastName,
+                    email: email,
+                    phone: phone
+                )
+                modelContext.insert(user)
+
+                authState.markWelcomeSlidesAsSeen()
+                dismiss()
+            } else {
+                errorMessage = authState.errorMessage ?? "An account with this email already exists."
+                showingError = true
+            }
         }
     }
 }
